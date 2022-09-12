@@ -16,21 +16,23 @@ class Queue {
   }
 }
 
-const States = {
+export const States = {
   R: "Готов",
   E: "Исполнение",
   W: "Ожидание",
   S: "Завершён"
 }
 
-const Commands = {
+export const Commands = {
   Exec: "И",
   Wait: "О"
 }
 
 export class process {
-  constructor(commands) {
+  constructor(name, commands) {
+    this.name = name
     this.state = States.R
+    this.waitTime = 0
     this.commands = new Queue(Array.from(commands))
     this.history = []
   }
@@ -45,6 +47,7 @@ export class process {
       case Commands.Wait:
         this.state = States.W
         this.commands.pop()
+        this.waitTime++
         break
       case undefined:
         this.state = States.S
@@ -54,17 +57,24 @@ export class process {
   }
 
   wait() {
-    if (this.state == States.W) {
-      const cmd = this.commands.pop()
-      switch (cmd) {
-        case Commands.Exec:
-          this.state = States.R
-          break
-        case Commands.Wait:
-          this.state = States.W
-          break
-      }
+    if (this.commands.front() == undefined) {
+      this.state = States.S
+      this.history.push(this.state)
+      return
     }
+
+    switch (this.state) {
+      case States.E:
+      case States.W:
+        if (this.commands.front() == Commands.Wait) {
+          this.state = States.W
+          this.commands.pop()
+        } else {
+          this.state = States.R
+        }
+        break
+    }
+    this.waitTime++
     this.history.push(this.state)
   }
 }
@@ -76,48 +86,112 @@ export class FCFS {
   }
 
   initProcesses(procs) {
-    this.processes = procs.map((p) => new process(p.queue))
-    this.processes.forEach((p) => {
-      console.log(p.state)
-    })
+    this.processes = procs.map((p) => new process(p.name, p.queue))
   }
 
   nextTick() {
     if (this.currentIdx == null) {
-      this.processes.some((p, i) => {
-        if (p.state == States.R) {
-          this.currentIdx = i
-          return true
+      this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
+        if (min == null) {
+          return idx
         }
-        return false
-      })
+
+        if (
+          arr[min].waitTime >= cur.waitTime ||
+          cur.commands.front() == undefined
+        ) {
+          return min
+        } else {
+          return idx
+        }
+      }, null)
+      this.processes[this.currentIdx].waitTime = 0
 
       if (this.processes.every((p) => p.state == States.S)) {
         return false
       }
     }
 
+    let needReset = false
     this.processes.forEach((p, i) => {
       if (this.currentIdx == i) {
         p.next()
-        if (p.state == States.W || p.state == States.S) {
-          this.currentIdx = null
-          console.log(`Restart ${i}`)
+        if (
+          p.state == States.W ||
+          p.state == States.S ||
+          p.commands.front() == Commands.Wait ||
+          p.commands.front() == undefined
+        ) {
+          needReset = true
         }
       } else {
         p.wait()
       }
     })
+    if (needReset) this.currentIdx = null
     return true
   }
 }
 
-export const testFCFS = () => {
-  let processes = [
-    new process("ИИИОООИИИИИ"),
-    new process("ИИИИИООИИ"),
-    new process("ИИОООИИ")
-  ]
+export class RR {
+  constructor(timeoutLimit, processes = []) {
+    this.processes = processes
+    this.currentIdx = null
+    this.timeoutLimit = timeoutLimit
+    this.timeout = 0
+  }
 
-  const fcfs = new FCFS(processes)
+  initProcesses(procs) {
+    this.processes = procs.map((p) => new process(p.name, p.queue))
+  }
+
+  nextTick() {
+    if (this.currentIdx == null) {
+      this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
+        if (min == null) {
+          return idx
+        }
+
+        if (
+          arr[min].waitTime >= cur.waitTime ||
+          cur.commands.front() == undefined
+        ) {
+          return min
+        } else {
+          if (this.timeout >= this.timeoutLimit) {
+            this.timeout = 0
+            return min
+          }
+          return idx
+        }
+      }, null)
+      this.processes[this.currentIdx].waitTime = 0
+
+      if (this.processes.every((p) => p.state == States.S)) {
+        return false
+      }
+    }
+
+    let needReset = false
+    this.processes.forEach((p, i) => {
+      if (this.currentIdx == i) {
+        p.next()
+        this.timeout++
+        if (
+          p.state == States.W ||
+          p.state == States.S ||
+          p.commands.front() == Commands.Wait ||
+          p.commands.front() == undefined ||
+          this.timeout >= this.timeoutLimit
+        ) {
+          this.timeout = 0
+          needReset = true
+        }
+      } else {
+        p.wait()
+      }
+    })
+    if (needReset) this.currentIdx = null
+    return true
+  }
 }

@@ -25,7 +25,7 @@
   <br />
   <br />
 
-  <table>
+  <table class="body">
     <thead>
       <tr>
         <th v-for="p in processes">{{ p.name }}</th>
@@ -33,14 +33,22 @@
     </thead>
     <tbody>
       <tr v-for="row in history">
-        <td v-for="s in row">{{ s }}</td>
+        <td
+          id="stateCell"
+          v-for="s in row"
+          :style="{
+            backgroundColor: $options.StatesColors[s]
+          }"
+        >
+          {{ s }}
+        </td>
       </tr>
     </tbody>
   </table>
 </template>
 
 <script>
-import { FCFS } from "./sheluders"
+import { FCFS as FCFSSheluder, RR as RRSheluder } from "./sheluders"
 
 export default {
   name: "App",
@@ -49,11 +57,18 @@ export default {
     return {
       currentDateTime: null,
       choosedAlgorithm: "FCFS",
-      sheluder: new FCFS(),
+      sheluder: new FCFSSheluder(),
       processes: [...this.$options.processes],
       history: [],
       commands: ""
     }
+  },
+
+  StatesColors: {
+    Готов: "#4A4458",
+    Исполнение: "#4F378B",
+    Ожидание: "#633B48",
+    Завершён: "#332D41"
   },
 
   processes: [
@@ -70,22 +85,38 @@ export default {
   },
 
   methods: {
+    chooseAlgo(algo) {
+      this.choosedAlgorithm = algo
+      switch (algo) {
+        case "FCFS":
+          this.sheluder = new FCFSSheluder()
+          this.sheluder.initProcesses(this.processes)
+          break
+
+        case "RR":
+          this.sheluder = new RRSheluder(2)
+          this.sheluder.initProcesses(this.processes)
+          break
+      }
+      console.log(this.choosedAlgorithm, this.sheluder)
+    },
+
     zip(rows) {
       return rows[0].map((_, c) => rows.map((row) => row[c]))
     },
 
     runDemo() {
+      this.history = []
       let run = true
       let asd = 0
       while (run) {
         run = this.sheluder.nextTick()
         asd++
-        if (asd > 25) {
+        if (asd > 60) {
           run = false
         }
       }
       this.history = this.zip(this.sheluder.processes.map((p) => p.history))
-      console.log(this.sheluder.processes)
     },
 
     addProcess() {
@@ -152,5 +183,9 @@ table,
 th,
 td {
   border: 1px solid;
+}
+#stateCell {
+  color: #cccccc;
+  border-color: black;
 }
 </style>
