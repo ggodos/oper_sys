@@ -19,6 +19,7 @@
       Пример: ИИООИИИ
     </div>
     <button @click="addProcess">Добавить процесс</button>
+    <button @click="resetTable">Сбросить историю</button>
   </div>
   <br />
   <button @click="runDemo">Запустить тест</button>
@@ -28,7 +29,10 @@
   <table class="body">
     <thead>
       <tr>
-        <th v-for="p in processes">{{ p.name }}</th>
+        <th v-for="p in processes">
+          {{ p.name }}
+          <button @click="removeProc(p.name)">X</button>
+        </th>
       </tr>
     </thead>
     <tbody>
@@ -85,6 +89,16 @@ export default {
   },
 
   methods: {
+    removeProc(name) {
+      this.processes = this.processes.filter((p) => p.name != name)
+      this.sheluder.initProcesses(this.processes)
+      this.resetTable()
+    },
+
+    resetTable() {
+      this.history = []
+    },
+
     chooseAlgo(algo) {
       this.choosedAlgorithm = algo
       switch (algo) {
@@ -108,23 +122,25 @@ export default {
     runDemo() {
       this.history = []
       let run = true
-      let asd = 0
+      // let asd = 0
       while (run) {
         run = this.sheluder.nextTick()
-        asd++
-        if (asd > 60) {
-          run = false
-        }
+        // asd++
+        // if (asd > 60) {
+        //   run = false
+        // }
       }
       this.history = this.zip(this.sheluder.processes.map((p) => p.history))
     },
 
     addProcess() {
+      const procName = this.processes[this.processes.length - 1].name + 1
       const newProc = {
-        name: this.processes.length + 1,
+        name: procName,
         queue: this.commands
       }
       this.processes.push(newProc)
+      this.sheluder.initProcesses(this.processes)
     },
 
     getCurrentTime() {
