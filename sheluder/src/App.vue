@@ -3,7 +3,7 @@
     <div>
       <h1 class="green">Планировщик</h1>
       <button
-        v-for="algo in ['FCFS', 'RR']"
+        v-for="algo in Object.values($options.Algos)"
         :key="algo"
         @click="chooseAlgo(algo)"
         :disabled="choosedAlgorithm == algo"
@@ -12,7 +12,9 @@
       </button>
     </div>
     <div class="green">Системное время: {{ currentDateTime }}</div>
-    <div>Параметры процесса:</div>
+    <div v-if="choosedAlgorithm == 'RR'">
+      <input type="number" v-model="rrCounter" />
+    </div>
     <div>
       <label for="commands">Добавить процесс:</label><br />
       <input v-model="commands" id="commands" type="text" />
@@ -52,7 +54,7 @@
 </template>
 
 <script>
-import { FCFS as FCFSSheluder, RR as RRSheluder } from "./sheluders"
+import { FCFS as FCFSSheluder, RR as RRSheluder } from "./sheluders.js"
 
 export default {
   name: "App",
@@ -64,10 +66,12 @@ export default {
       sheluder: new FCFSSheluder(),
       processes: [...this.$options.processes],
       history: [],
+      rrCounter: 2,
       commands: ""
     }
   },
 
+  Algos: { FCFS: "FCFS", RR: "RR" },
   StatesColors: {
     Готов: "#4A4458",
     Исполнение: "#4F378B",
@@ -108,11 +112,10 @@ export default {
           break
 
         case "RR":
-          this.sheluder = new RRSheluder(2)
+          this.sheluder = new RRSheluder(parseInt(this.rrCounter))
           this.sheluder.initProcesses(this.processes)
           break
       }
-      console.log(this.choosedAlgorithm, this.sheluder)
     },
 
     zip(rows) {
@@ -150,6 +153,13 @@ export default {
       const minutes = pad(date.getMinutes())
       const seconds = pad(date.getSeconds())
       return `${hours}:${minutes}:${seconds}`
+    }
+  },
+
+  watch: {
+    rrCounter(newCounter) {
+      this.sheluder.reset({ timeoutLimit: newCounter })
+      this.sheluder.initProcesses(this.processes)
     }
   }
 }

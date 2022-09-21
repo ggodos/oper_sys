@@ -30,35 +30,53 @@ export const Commands = {
 
 export class process {
   constructor(name, commands) {
+    this.initCommands(commands)
+    this.state = this.nextCommand() == Commands.Wait ? States.W : States.R
+
     this.name = name
-    this.state = States.R
-    this.waitTime = 0
-    this.commands = new Queue(Array.from(commands))
     this.history = []
+    this.waitTime = 0
   }
 
-  next() {
-    const cmd = this.commands.front()
-    switch (cmd) {
+  nextCommand() {
+    return this.commands.front()
+  }
+
+  initCommands(commandsArray) {
+    this.commands = new Queue(Array.from(commandsArray))
+  }
+
+  exec() {
+    let isExecuting
+    switch (this.nextCommand()) {
       case Commands.Exec:
         this.state = States.E
         this.commands.pop()
+        isExecuting = true
         break
       case Commands.Wait:
+        if (this.state == States.E) {
+          this.waitTime = 0
+        }
         this.state = States.W
         this.commands.pop()
         this.waitTime++
+        isExecuting = false
         break
       case undefined:
         this.state = States.S
+        this.waitTime = -1
+        isExecuting = false
         break
     }
     this.history.push(this.state)
+    return isExecuting
   }
 
   wait() {
-    if (this.commands.front() == undefined) {
+    if (this.nextCommand() == undefined) {
       this.state = States.S
+      this.waitTime = -1
       this.history.push(this.state)
       return
     }
@@ -66,7 +84,8 @@ export class process {
     switch (this.state) {
       case States.E:
       case States.W:
-        if (this.commands.front() == Commands.Wait) {
+      case States.R:
+        if (this.nextCommand() == Commands.Wait) {
           this.state = States.W
           this.commands.pop()
         } else {
@@ -79,119 +98,122 @@ export class process {
   }
 }
 
-export class FCFS {
+class Sheluder {
   constructor(processes = []) {
-    this.processes = processes
+    this.initProcesses(processes)
     this.currentIdx = null
+  }
+
+  reset(props) {
+    Object.entries(props).forEach(([name, value]) => {
+      this[name] = value
+    })
   }
 
   initProcesses(procs) {
     this.processes = procs.map((p) => new process(p.name, p.queue))
   }
 
-  nextTick() {
-    if (this.currentIdx == null) {
-      this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
-        if (min == null) {
-          return idx
-        }
+  chooseNextExec() {
+    return false
+  }
 
-        if (
-          arr[min].waitTime >= cur.waitTime ||
-          cur.commands.front() == undefined
-        ) {
-          return min
-        } else {
-          return idx
-        }
-      }, null)
-      this.processes[this.currentIdx].waitTime = 0
-
-      if (this.processes.every((p) => p.state == States.S)) {
-        return false
-      }
+  processFunction(proc, idx, needSelectAnother) {
+    if (this.currentIdx != idx) {
+      proc.wait()
+      return
     }
 
-    let needReset = false
-    this.processes.forEach((p, i) => {
-      if (this.currentIdx == i) {
-        p.next()
-        if (
-          p.state == States.W ||
-          p.state == States.S ||
-          p.commands.front() == Commands.Wait ||
-          p.commands.front() == undefined
-        ) {
-          needReset = true
-        }
-      } else {
-        p.wait()
-      }
-    })
-    if (needReset) this.currentIdx = null
+    proc.exec()
+    if (
+      proc.state == States.W ||
+      proc.state == States.S ||
+      proc.nextCommand() == Commands.Wait ||
+      proc.nextCommand() == undefined
+    ) {
+      needSelectAnother.ok = true
+    }
+  }
+
+  nextTick() {
+    if (this.currentIdx == null && this.chooseNextExec()) {
+      this.processes[this.currentIdx].waitTime = 0
+    }
+
+    if (this.processes.every((p) => p.state == States.S)) {
+      return false
+    }
+
+    let needSelectAnother = { ok: false }
+    this.processes.forEach((p, i) =>
+      this.processFunction(p, i, needSelectAnother)
+    )
+    if (needSelectAnother.ok) this.currentIdx = null
     return true
   }
 }
+export class FCFS extends Sheluder {
+  constructor(processes = []) {
+    super(processes)
+  }
 
-export class RR {
+  chooseNextExec() {
+    this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
+      if (min == null) {
+        return idx
+      }
+
+      if (arr[min].waitTime >= cur.waitTime || cur.nextCommand() == undefined) {
+        return min
+      } else {
+        return idx
+      }
+    }, null)
+  }
+}
+
+export class RR extends Sheluder {
   constructor(timeoutLimit, processes = []) {
-    this.processes = processes
-    this.currentIdx = null
+    super(processes)
     this.timeoutLimit = timeoutLimit
     this.timeout = 0
   }
 
-  initProcesses(procs) {
-    this.processes = procs.map((p) => new process(p.name, p.queue))
+  chooseNextExec() {
+    this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
+      if (min == null) {
+        return idx
+      }
+
+      if (arr[min].waitTime >= cur.waitTime || cur.nextCommand() == undefined) {
+        return min
+      } else {
+        if (this.timeout >= this.timeoutLimit) {
+          this.timeout = 0
+          return min
+        }
+        return idx
+      }
+    }, null)
   }
 
-  nextTick() {
-    if (this.currentIdx == null) {
-      this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
-        if (min == null) {
-          return idx
-        }
-
-        if (
-          arr[min].waitTime >= cur.waitTime ||
-          cur.commands.front() == undefined
-        ) {
-          return min
-        } else {
-          if (this.timeout >= this.timeoutLimit) {
-            this.timeout = 0
-            return min
-          }
-          return idx
-        }
-      }, null)
-      this.processes[this.currentIdx].waitTime = 0
-
-      if (this.processes.every((p) => p.state == States.S)) {
-        return false
-      }
+  processFunction(proc, idx, needSelectAnother) {
+    if (this.currentIdx != idx) {
+      proc.wait()
+      return
     }
 
-    let needReset = false
-    this.processes.forEach((p, i) => {
-      if (this.currentIdx == i) {
-        p.next()
-        this.timeout++
-        if (
-          p.state == States.W ||
-          p.state == States.S ||
-          p.commands.front() == Commands.Wait ||
-          p.commands.front() == undefined ||
-          this.timeout >= this.timeoutLimit
-        ) {
-          this.timeout = 0
-          needReset = true
-        }
-      } else {
-        p.wait()
-      }
-    })
-    if (needReset) this.currentIdx = null
-    return true
+    proc.exec()
+    this.timeout++
+    if (
+      proc.state == States.W ||
+      proc.state == States.S ||
+      proc.nextCommand() == Commands.Wait ||
+      proc.nextCommand() == undefined ||
+      this.timeout >= this.timeoutLimit
+    ) {
+      this.timeout = 0
+      needSelectAnother.ok = true
+    }
   }
 }
