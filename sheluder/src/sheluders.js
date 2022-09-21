@@ -125,6 +125,7 @@ class Sheluder {
     }
 
     proc.exec()
+    proc.waitTime = 0
     if (
       proc.state == States.W ||
       proc.state == States.S ||
@@ -163,7 +164,8 @@ export class FCFS extends Sheluder {
         return idx
       }
 
-      if (arr[min].waitTime >= cur.waitTime || cur.nextCommand() == undefined) {
+      if (arr[min].waitTime >= cur.waitTime) {
+        // || cur.nextCommand() == undefined) {
         return min
       } else {
         return idx
