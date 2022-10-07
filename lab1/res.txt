@@ -4,3 +4,8 @@ Thu Oct  6 07:46:13 PM +05 2022
 another_dirname/another_1 >> another_dirname/newPrefix_another_1
 another_dirname/another_2 >> another_dirname/newPrefix_another_2
 another_dirname/another_3 >> another_dirname/newPrefix_another_3
+Fri Oct  7 11:44:04 AM +05 2022
+
+workspace/another_1 renamed to workspace/fun_another_1
+workspace/another_2 renamed to workspace/fun_another_2
+workspace/another_3 renamed to workspace/fun_another_3
