@@ -35,7 +35,6 @@ export class process {
 
     this.name = name
     this.history = []
-    this.waitTime = 0
   }
 
   nextCommand() {
@@ -55,17 +54,12 @@ export class process {
         isExecuting = true
         break
       case Commands.Wait:
-        if (this.state == States.E) {
-          this.waitTime = 0
-        }
         this.state = States.W
         this.commands.pop()
-        this.waitTime++
         isExecuting = false
         break
       case undefined:
         this.state = States.S
-        this.waitTime = -1
         isExecuting = false
         break
     }
@@ -76,7 +70,6 @@ export class process {
   wait() {
     if (this.nextCommand() == undefined) {
       this.state = States.S
-      this.waitTime = -1
       this.history.push(this.state)
       return
     }
@@ -93,15 +86,14 @@ export class process {
         }
         break
     }
-    this.waitTime++
     this.history.push(this.state)
   }
 }
 
-class Sheluder {
+class Sheduler {
   constructor(processes = []) {
     this.initProcesses(processes)
-    this.currentIdx = null
+    this.currentIdx = 0
   }
 
   reset(props) {
@@ -125,7 +117,6 @@ class Sheluder {
     }
 
     proc.exec()
-    proc.waitTime = 0
     if (
       proc.state == States.W ||
       proc.state == States.S ||
@@ -137,8 +128,8 @@ class Sheluder {
   }
 
   nextTick() {
-    if (this.currentIdx == null && this.chooseNextExec()) {
-      this.processes[this.currentIdx].waitTime = 0
+    if (this.currentIdx >= this.processes.length) {
+      this.currentIdx = 0
     }
 
     if (this.processes.every((p) => p.state == States.S)) {
@@ -149,54 +140,21 @@ class Sheluder {
     this.processes.forEach((p, i) =>
       this.processFunction(p, i, needSelectAnother)
     )
-    if (needSelectAnother.ok) this.currentIdx = null
+    if (needSelectAnother.ok) this.currentIdx++
     return true
   }
 }
-export class FCFS extends Sheluder {
+export class FCFS extends Sheduler {
   constructor(processes = []) {
     super(processes)
   }
-
-  chooseNextExec() {
-    this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
-      if (min == null) {
-        return idx
-      }
-
-      if (arr[min].waitTime >= cur.waitTime) {
-        // || cur.nextCommand() == undefined) {
-        return min
-      } else {
-        return idx
-      }
-    }, null)
-  }
 }
 
-export class RR extends Sheluder {
+export class RR extends Sheduler {
   constructor(timeoutLimit, processes = []) {
     super(processes)
     this.timeoutLimit = timeoutLimit
     this.timeout = 0
-  }
-
-  chooseNextExec() {
-    this.currentIdx = this.processes.reduce((min, cur, idx, arr) => {
-      if (min == null) {
-        return idx
-      }
-
-      if (arr[min].waitTime >= cur.waitTime || cur.nextCommand() == undefined) {
-        return min
-      } else {
-        if (this.timeout >= this.timeoutLimit) {
-          this.timeout = 0
-          return min
-        }
-        return idx
-      }
-    }, null)
   }
 
   processFunction(proc, idx, needSelectAnother) {
